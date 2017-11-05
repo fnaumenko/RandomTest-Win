@@ -1,4 +1,4 @@
-# RandomTest
+# RandomTest ![fig](RandomTest_solution/RandomTest/RandomTest.ico)
 Windows visual test of linear, normal and lognormal distribution based on different Random Number Generators.
 
 The application is primarily intended for fitting the parameters of the lognormal distribution of fragments 
@@ -11,7 +11,7 @@ Distributions are displayed both in textual and graphical view.
 
 ### Launching
 Portable (does not need to be installed). 
-Download from [here](https://github.com/fnaumenko/RandomTest/releases/latest), unzip, go to the *FTT* folder and and click on the file **FTT.exe**
+Download from [here](https://github.com/fnaumenko/RandomTest-Win/releases/latest), unzip, go to the *RandomTest* folder and and click on the file **RandomTest.exe**
 
 ### Requirements
 Microsoft [.NET Framework 4.0](https://www.microsoft.com/en-us/download/details.aspx?id=17718) or higher.
