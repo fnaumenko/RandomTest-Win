@@ -1,11 +1,11 @@
 # RandomTest
-Windows visual test of normal, lognormal distribution based on different Random Number Generators.
+Windows visual test of linear, normal and lognormal distribution based on different Random Number Generators.
 
 The application is primarily intended for fitting the parameters of the lognormal distribution of fragments 
 within the framework of the [isChIP](https://github.com/fnaumenko/isChIP) project.
 
-It also allows to compare the performance of various random number generators (including C and C# standard), 
-and standard C generator of lognormal distribution.
+It also allows to compare the performance of various Random Number Generators (including standard C and C#), 
+as well as standard C generator of lognormal distribution.
 
 Distributions are displayed both in textual and graphical representations.
 
