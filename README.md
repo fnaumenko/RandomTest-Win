@@ -11,7 +11,8 @@ Distributions are displayed both in textual and graphical view.
 
 ### Launching
 Portable (does not need to be installed). 
-Download from [here](https://github.com/fnaumenko/RandomTest-Win/releases/latest), unzip, go to the *RandomTest* folder and and click on the file **RandomTest.exe**
+Download from [here](https://github.com/fnaumenko/RandomTest-Win/releases/download/1.0.0/RandomTest-Windows-x64.zip), 
+unzip, go to the *RandomTest* folder and and click on the file **RandomTest.exe**
 
 ### Requirements
 Microsoft [.NET Framework 4.0](https://www.microsoft.com/en-us/download/details.aspx?id=17718) or higher.
