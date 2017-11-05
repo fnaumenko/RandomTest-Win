@@ -1,5 +1,5 @@
 # RandomTest ![fig](RandomTest_solution/RandomTest/RandomTest.ico)
-Windows visual test of linear, normal and lognormal distribution based on different Random Number Generators.
+Windows visual test of linear, normal and lognormal distributions based on different Random Number Generators.
 
 The application is primarily intended for fitting the parameters of the lognormal distribution of fragments 
 within the framework of the [isChIP](https://github.com/fnaumenko/isChIP) project.
