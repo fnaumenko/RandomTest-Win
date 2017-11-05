@@ -7,7 +7,7 @@ within the framework of the [isChIP](https://github.com/fnaumenko/isChIP) projec
 It also allows to compare the performance of various Random Number Generators (including standard C and C#), 
 as well as standard C generator of lognormal distribution.
 
-Distributions are displayed both in textual and graphical representations.
+Distributions are displayed both in textual and graphical view.
 
 ### Launching
 Portable (does not need to be installed). 
