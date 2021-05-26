@@ -54,9 +54,9 @@
     <ApplicationIcon>RandomTest.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Plot, Version=1.1.4.30544, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Plot\Plot\bin\Debug\Plot.dll</HintPath>
+    <Reference Include="Plot">
+      <HintPath>..\..\Plot\Plot\bin\Release\Plot.dll</HintPath>
+      <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />

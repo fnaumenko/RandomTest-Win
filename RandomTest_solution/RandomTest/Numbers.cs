@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Collections.Generic;
 
 namespace RandomTest
 {
@@ -8,11 +8,31 @@ namespace RandomTest
     public class Numbers
     {
         System.Drawing.PointF[] _pts = null;    // numbers frequencies
-        public short[] Data;
+        bool _isSizeSel;
+        int _summitInd;                         // index of point with maximum y-coordinate
 
-        public Numbers(int count)
+        /// <summary>Gets or sets generated random numbers.</summary>
+        public int[] Data { get; set; }
+
+        public Numbers(int count, bool isSizeSelection)
         {
-            Data = new short[count];
+            Data = new int[count];
+            _isSizeSel = isSizeSelection;
+        }
+
+        /// <summary>
+        /// Gets the total number of freq-val pairs in the number pairs collection
+        /// </summary>
+        public int Length { get => Freqs.Length; }
+
+        /// <summary>Gets the index of summit (vertex) point.</summary>
+        public int SummitInd
+        {
+            get
+            {
+                if (_pts == null) SetPoints();
+                return _summitInd;
+            }
         }
 
         /// <summary>
@@ -23,50 +43,35 @@ namespace RandomTest
         {
             get
             {
-                if (_pts == null)
-                    SetPoints();
+                if (_pts == null)   SetPoints();
                 return _pts;
             }
         }
 
-         /// <summary>Sets Points collection.</summary>
+        /// <summary>Sets Points collection.</summary>
         void SetPoints()
         {
-            Array.Sort(Data);
+            SortedDictionary<int, int> map = new SortedDictionary<int, int>();
 
-            int i, startInd = 0, ind = 0, amount;
-            short currVal, prevVal;
+            foreach (int n in Data)
+                if (map.ContainsKey(n)) map[n]++;
+                else                    map[n] = 1;
 
-            // get precise size of point array
-            for (i = amount = 0; i < Data.Length - 1; i++)
-                //if (Data[i] == 0)     // exclude zero values
-                //    startInd++;
-                //else
-                    if (Data[i] != Data[i + 1])
-                        amount++;
-            _pts = new System.Drawing.PointF[amount+1];
+            Data = null;
+            if (_isSizeSel)
+                map.Remove(0);  // remove "empty" Data elements
 
-            // fill point array, excluding point with zero X
-            prevVal = Data[startInd];
-            amount = 1;
-            for (i = startInd+1; i < Data.Length; amount++, i++)
-                if ((currVal=Data[i]) != prevVal)
+            _pts = new System.Drawing.PointF[map.Count];
+            int ind = 0, maxY = 0;
+            foreach (KeyValuePair<int, int> kvp in map)
+            {
+                if ((_pts[ind].Y = kvp.Value) > maxY)   // freq
                 {
-                    SetPoint(ind++, prevVal, amount);
-                    amount = 0;
-                    prevVal = currVal;
+                    maxY = kvp.Value;
+                    _summitInd = ind;
                 }
-            SetPoint(ind, prevVal, amount);   // finally the last Point
-        }
-
-        /// <summary>Set Point and _maxYValue.</summary>
-        /// <param name="ptIndex">Point index in _pts</param>
-        /// <param name="X">X-value.</param>
-        /// <param name="Y">Y-value.</param>
-        void SetPoint(int ptIndex, float X, int Y)
-        {
-            _pts[ptIndex].X = X;
-            _pts[ptIndex].Y = Y;
+                _pts[ind++].X = kvp.Key;                // numb
+            }
         }
     }
 }

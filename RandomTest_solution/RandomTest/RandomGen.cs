@@ -1,5 +1,4 @@
-﻿//#define DEVELOPMENT
-
+﻿
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,29 +12,34 @@ namespace RandomTest
     public static class RandomGen
     {
         const byte FIRST_IND_CSH = 4;   // first C# index in first parameter in Init() 
-        const byte  BASED_ON_C = 0,     // RNG based on C
-                    BASED_ON_SCH_STRONG = 1,   // C# strong RNG
-                    BASED_ON_CSH = 2;    // C# stdandard RNG
+        const byte  ON_C = 0,           // RNG based on C
+                    ON_SCH_STRONG = 1,  // C# strong RNG
+                    ON_CSH = 2;         // C# stdandard RNG
 
-        const byte  GAUSS_ABRAM = 0,    // Abramowitz and Stegun generator index
-                    GAUSS_CLT = 1,      // Central Limit Theorem generator index
-                    GAUSS_FOG = 2,      // Fog generator index
-                    GAUSS_MARS = 3,     // Marsaglia generator index
-                    GAUSS_CSH = 4;      // C# generator index
+        const byte  GS_ABRAM = 0,    // Abramowitz and Stegun generator index
+                    GS_CLT = 1,      // Central Limit Theorem generator index
+                    GS_FOG = 2,      // Fog generator index
+                    GS_MARS = 3,     // Marsaglia generator index
+                    GS_CSH = 4;      // C# generator index
 
         /// <summary>Keeps library on which the random generator is based.</summary>
         static byte Library;
         static Chart chart = new Chart();
         static StatisticFormula statFormula = chart.DataManipulator.Statistics;
-        static int Sigma = 0;
-        static int Mean = 0;
-        static int LnFactor;
-        static float LnTerm;
-        static int SzSelSigma = 0;
-        //static int SzSelMean = 0;
-
-        static int ValDevMin;
-        static int ValDevMax;
+        /// <summary>Array containing mean and sigma of normal or lognormal distribution</summary>
+        static float[] DistVars;
+        /// <summary>Size sel mean or 0 if size sel is unable</summary>
+        static int ssMean;
+        /// <summary>Doubled variance 2*sigma^2 in the size sel normal distribution</summary>
+        //static double ssDVariance;
+        /// <summary>Factor sigma*sqr(2PI) in the size sel normal distribution</summary>
+        //static double ssFactor;
+        /// <summary>Size sel normal distribution aligning up ratio</summary>
+        //static double ssAlignRatio;
+        /// <summary>Factor sigma*sqr(2) in the size sel normal distribution</summary>
+        static float ssFactor0;
+        /// <summary>Factor 2.5/sqr(2PI) in the size sel normal distribution</summary>
+        static float ssFactor1;
 
         //static bool IsCsharpStrong = false;
         /// <summary>True if lognorm generation should be performed.</summary>
@@ -45,20 +49,32 @@ namespace RandomTest
 
         /// <summary>Random number generator.</summary>
         static RandomGenDlg RandomNumb;
-        /// <summary>Random distribution generator.</summary>
+        /// <summary>Current distribution RNG.</summary>
         static RandomGenDlg Distrib;
+        /// <summary>All distribution RNGs.</summary>
+        static RandomGenDlg[] Distribs =
+        {
+                    GetRandom,  // plain RNG
+                    GaussAS,
+                    GaussCLT,
+                    GaussFog,
+                    GaussM,
+                    GaussCshStd,
+        };
 
-        static Random rand = new Random();
+    static Random rand = new Random();
         static System.Security.Cryptography.RNGCryptoServiceProvider rngCsp =
             new System.Security.Cryptography.RNGCryptoServiceProvider();
 
         static double U = 0, V = 0, S = 0, Trig = 0;
-        static double normal_x2;    // Gauss by Fog
+        static double normal_x2;     // Gauss by Fog
         static int phase = 0;
         static bool zeroPhase = true;
         const int NSUM = 25;
 
-        static int RGenCount;
+        static int GenCallCnt;
+
+        //static bool isTest;
 
         /// <summary>Represents collection of cryptographicly strong random numbers.</summary>
         class CshStrongRandomGen
@@ -71,13 +87,10 @@ namespace RandomTest
             {
                 // These generators call GetRandom() from 3 to 4 times,
                 // so the total random numbers collection should be increased
-                if (gaussGenInd == GAUSS_CLT || gaussGenInd == GAUSS_FOG || gaussGenInd == GAUSS_CLT)
-                    _Multiplier = 3;
-                else
-                    _Multiplier = 1;
+                _Multiplier = gaussGenInd == GS_CLT || gaussGenInd == GS_FOG ? 3 : 1;
             }
 
-            byte[] _numbers;
+            readonly byte[] _numbers;
             int _counter;
 
             /// <summary>Creates and fill a collection of cryptographicly strong random numbers.</summary>
@@ -108,91 +121,108 @@ namespace RandomTest
         /// 2 Fog, 3Marsaglia, 4 C/C# std</param>
         /// <param name="isExp">True if include lognorm generation</param>
         /// <param name="isStdLogNorm">True if use C++ standard lognorm generation</param>
-        /// <param name="mean">Gauss mean</param>
-        /// <param name="sigma">Gauss sigma</param>
-        /// <param name="lnFactor">Lognorm factor</param>
-        /// <param name="lnTerm">Lognorm term</param>
+        /// <param name="distVars">Gauss or lognorm mean and sigma</param>
+        /// <param name="ssVars">Size selection distribution mean and sigma, or null if size selection is inactive</param>
         /// <returns>False if extern CRandom dll is not found, otherwise true</returns>
         public static bool Init(int randGen, int normGen, bool isExp, bool isStdLogNorm,
-            int mean, int sigma, int lnFactor, float lnTerm,
-            int szSelMean, int szSelSigma, int dev)
+            float[] distVars, int[] ssVars)
         {
-            Library = randGen < FIRST_IND_CSH ? BASED_ON_C : (randGen == FIRST_IND_CSH+1 ? BASED_ON_SCH_STRONG : BASED_ON_CSH);
+            Library = randGen < FIRST_IND_CSH ? ON_C : (randGen == FIRST_IND_CSH + 1 ? ON_SCH_STRONG : ON_CSH);
             IsExp = isExp;
-            Mean = mean;
-            Sigma = sigma;
-            LnFactor = lnFactor;
-            LnTerm = lnTerm;
-            if (normGen == -1)
-            {
-                Sigma = 1000;
-                Mean = 0;
-            }
+            DistVars = distVars;
+            if (normGen == -1 && !isExp) { DistVars[0] = 0; DistVars[1] = 1000; }
 
-            if (Library == BASED_ON_C)
+            if (Library == ON_C)
                 if (System.IO.File.Exists(CRandom.FullDllFile))
-                    CRandom.Init(randGen, normGen, isExp, isStdLogNorm, Mean, Sigma, LnFactor, LnTerm);
+                    CRandom.Init(randGen, normGen, isExp, isStdLogNorm, distVars, ssVars);
                 else
                     return false;
             else
             {
                 RandomNumb = GetRandom;
                 CshStrongRandomGen.RecordGaussGen(normGen);
-                SzSelSigma = szSelSigma;
-                ValDevMin = szSelMean - dev;
-                ValDevMax = szSelMean + dev;
-                switch (normGen)
-                {
-                    case -1: Distrib = GetRandom; break;
-                    case 0: Distrib = GaussAS; break;
-                    case 1: Distrib = GaussCLT; break;
-                    case 2: Distrib = GaussFog; break;
-                    case 3: Distrib = GaussM; break;
-                    case 4: Distrib = GaussCshStd; break;
-                }
+                Distrib = Distribs[normGen + 1];
             }
+            if (ssVars != null)     // size selection is able
+            {
+                ssMean = ssVars[0];
+                //ssDVariance = 2 * ssVars[1] * ssVars[1];
+                //ssFactor = ssVars[1] * Math.Sqrt(2 * Math.PI);
+                //ssAlignRatio = 2.5 * ssVars[1];
+
+                ssFactor0 = (float)(ssVars[1] * Math.Sqrt(2));
+                ssFactor1 = 2.5f / (float)Math.Sqrt(2 * Math.PI);
+            }
+            else ssMean = 0;
+
             return true;
         }
 
         /// <summary>Fills data by current distribution.</summary>
         /// <param name="numbers">Data that should be filled</param>
-        /// <param name="cnt">Number or repetitions. Returned the number of rendom generator calls.</param>
+        /// <param name="cnt">Number or repetitions. Returned the number of random generator calls.</param>
         /// <returns>Average Y value.</returns>
         public static float GetDistrib(Numbers numbers, ref int cnt)		
         {
-            RGenCount = 0;
-            if (Library == BASED_ON_C)
-                return CRandom.GetDistrib(numbers != null ? numbers.Data : null, ref cnt);
-            else if (Library == BASED_ON_SCH_STRONG)
+            GenCallCnt = 0;
+            if (Library == ON_C)
+            {
+                float res = CRandom.GetDistrib(
+                    numbers != null ? numbers.Data : null, ref cnt, ref GenCallCnt);
+                cnt = GenCallCnt;
+                return res;
+            }
+            else if (Library == ON_SCH_STRONG)
             {
                 CshStrongRandomGen gen = new CshStrongRandomGen(cnt);
                 RandomNumb = gen.GetNext;
             }
             decimal sum = 0;
-            double dres;
-            short res;
+            int val;
+            int actualCnt = 0;
+            double dval;
+            float ssDev;  // result of inverse normal distrib
+            int min, max;
+
             for (int i = 0; i < cnt; i++)
             {
-                dres = Distrib() * Sigma + Mean;
-                if (IsExp)
-                    dres = Math.Exp(dres / LnFactor + LnTerm);
-                res = (short)dres;
+                dval = Distrib() * DistVars[1] + DistVars[0];
+                if (IsExp)  // lognorm is able
+                {
+                    val = (int)Math.Exp(dval);
 
-                // round up res: otherwise all values will be round down during casting to short.
-                // in this case the distribution will not only be inaccurate,
-                // but worse - values less than 1 will be rounded to 0,
-                // which leads to a falsely large number of zero points.
-                // The variant res = (short)Math.Round(dres, 0) is much slower
-                if (dres > 0) { if (dres - res >= 0.5) res++; }	// round up positives
-                else { if (dres - res <= -0.5) res--; }	// round up negatieves
-                
-                if(numbers!=null)
-                    numbers.Data[i] = res;
-                sum += res;
+                    if(ssMean > 0) {			// size selection is able
+				        // === simple method
+                        //if (GetRandom() > ssAlignRatio *
+                        //    Math.Exp(-Math.Pow(dval - ssMean, 2) / ssDVariance) / ssFactor)
+                        //    continue;		// filter by size selection
+
+				        // === method with using min and max
+                        ssDev = ssFactor0 * (float)Math.Sqrt(Math.Log(ssFactor1 / GetRandom()));
+                        min = (int)(ssMean - ssDev);
+                        max = (int)(ssMean + ssDev);
+				        if(val < min || val > max)	
+					        continue;		// filter by size selection
+                    }
+                }
+                else // lognorm is disable
+                {
+                    val = (int)dval;
+                    // round up val: otherwise all values will be round down during casting to int.
+                    // in this case the distribution will not only be inaccurate,
+                    // but worse - values less than 1 will be rounded to 0,
+                    // which leads to a falsely large number of zero points.
+                    // The variant val = (int)Math.Round(dval, 0) is much slower
+                    if (dval > 0) { if (dval - val >= 0.5) val++; }	// round up positives
+                    else { if (dval - val <= -0.5) val--; }	// round up negatieves
+                }
+                sum += val;
+                if (numbers != null)
+                    numbers.Data[actualCnt] = val;
+                actualCnt++;
             }
-            float average = (float)sum / cnt;
-            cnt = RGenCount;
-            return average;
+            cnt = GenCallCnt;
+            return (float)sum / actualCnt;
         }
 
 
@@ -200,7 +230,7 @@ namespace RandomTest
         /// <returns>Random double.</returns>
         static double GetRandom()
         {
-            RGenCount++;
+            GenCallCnt++;
             return rand.NextDouble();
             //return (double)rand.Next() / int.MaxValue;    // this is a very little slower
         }
@@ -209,14 +239,15 @@ namespace RandomTest
         /// <returns>Random double.</returns>
         static int GetIRandom()
         {
-            RGenCount++;
+            GenCallCnt++;
             return rand.Next();
         }
 
         # region Gaussian generators
 
-        /// <summary>Based on C# random Gauss generator used Abramowitz and Stegun method.</summary>
+        /// <summary>Gauss generator used Abramowitz and Stegun method.</summary>
         /// <returns></returns>
+        /// <see cref="http://c-faq.com/lib/gaussian.html"/>
         static double GaussAS()
         {
             double Trig;
@@ -234,20 +265,23 @@ namespace RandomTest
             return Trig * Math.Sqrt(-2 * Math.Log(U));
         }
 
-        /// <summary>Based on C# random Gauss generator exploits the Central Limit Theorem.</summary>
+        /// <summary>Gauss generator exploits the Central Limit Theorem.</summary>
         /// <returns></returns>
+        /// <see cref="http://c-faq.com/lib/gaussian.html"/>
         static double GaussCLT()
         {
             double x = 0;
             for (int i = 0; i < NSUM; i++)
                 x += RandomNumb();
             x -= NSUM / 2.0;
-            x /= Math.Sqrt(NSUM / 12.0);
-            return x;
+            return x / Math.Sqrt(NSUM / 12.0);
         }
 
-        /// <summary>Based on C# random Gauss generator used A. Fog method.</summary>
-        /// <returns></returns>
+        /// <summary>Gauss generator used modified A. Fog method.</summary>
+        /// <returns>alue with gaussian likelihood between about -5 and +5</returns>
+        /// <see cref="http://www.esapubs.org/archive/ecol/E094/228/SupplementS1/stoc1.cpp"/>
+        /// <see cref="http://www.agner.org/random/"/>
+        /// <see cref="http://www.agner.org/random/sampmet.pdf"/>
         static double GaussFog()
         {
             double normal_x1;		// first random coordinate (normal_x2 is member of class)
@@ -270,8 +304,9 @@ namespace RandomTest
             return normal_x1 * w;
         }
 
-        /// <summary>Based on C# random Gauss generator used Marsaglia method.</summary>
+        /// <summary>Gauss generator used Marsaglia method.</summary>
         /// <returns></returns>
+        /// <see cref="http://c-faq.com/lib/gaussian.html"/>
         static double GaussM()
         {
 	        if(phase == 0)
@@ -291,11 +326,14 @@ namespace RandomTest
             return Trig * Math.Sqrt(-2 * Math.Log(S) / S);
         }
 
-        /// <summary>Standard C# random Gauss generator.</summary>
+        // https://www.seehuhn.de/pages/ziggurat.html
+
+
+        /// <summary>Standard C# Gauss generator.</summary>
         /// <returns></returns>
         static double GaussCshStd()
         {
-            return statFormula.InverseNormalDistribution((double)rand.Next(1, short.MaxValue - 1) / short.MaxValue);
+            return statFormula.InverseNormalDistribution((double)rand.Next(1, int.MaxValue - 1) / int.MaxValue);
             //return statFormula.InverseNormalDistribution(GetRandom()); - doesn't woark because of index exceeding
         }
 
@@ -307,16 +345,18 @@ namespace RandomTest
     {
         public const string DllFile = "CRandomGen.dll";
         public const string FullDllFile = 
-#if DEVELOPMENT
-        @"\Documents\Visual Studio 2010\Projects\CRandomGen\Release\" + DllFile;
+#if DEBUG
+        @"..\Release\" + DllFile;
 #else
         DllFile;
 #endif
 
         [DllImport(FullDllFile, CallingConvention = CallingConvention.Cdecl)]
-        public extern static void Init(int randInd, int normInd, bool isExp, bool isStdLogNorm, int mean, int sigma, int lnFactor, float lnTerm);
+        public extern static void Init(int randInd, int normInd, bool isExp,
+            bool isStdLogNorm, float[] distVars, int[] ssVars);
 
         [DllImport(FullDllFile, CallingConvention = CallingConvention.Cdecl)]
-        public extern unsafe static float GetDistrib(short[] data, ref int cnt);
+        public extern unsafe static float GetDistrib(
+            int[] data, ref int cnt, ref int genCallCnt);
     }
 }
